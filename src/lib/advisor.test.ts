@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { courseLine, mentionedCourseNumbers, retrieveCourses, termsForQuestion } from "./advisor";
+import {
+  courseLine,
+  fallbackReply,
+  mentionedCourseNumbers,
+  retrieveCourses,
+  termsForQuestion,
+} from "./advisor";
 import { SECTIONS } from "./courses";
 
 describe("advisor course search", () => {
@@ -46,5 +52,20 @@ describe("advisor course search", () => {
     const line = courseLine(g);
     expect(line).toContain("API-209");
     expect(line).toContain("credits");
+  });
+});
+
+describe("advisor fallback without AI", () => {
+  it("lists the closest catalog matches with numbers", () => {
+    const reply = fallbackReply(retrieveCourses(SECTIONS, "negotiation", "", "2026 Fall", 5));
+    expect(reply.fallback).toBe(true);
+    expect(reply.courses.length).toBeGreaterThan(0);
+    for (const c of reply.courses) expect(reply.answer).toContain(c);
+  });
+
+  it("asks for a clearer question when nothing matches", () => {
+    const reply = fallbackReply([]);
+    expect(reply.courses).toEqual([]);
+    expect(reply.answer).toMatch(/couldn't find/);
   });
 });

@@ -89,3 +89,27 @@ export function courseLine(g: CourseGroup): string {
   ];
   return parts.filter(Boolean).join(" | ");
 }
+
+export type AdvisorReply = { answer: string; courses: string[]; fallback: boolean };
+
+/** Reply used when no AI provider is available: list the closest catalog matches, no advice. */
+export function fallbackReply(courses: CourseGroup[]): AdvisorReply {
+  if (courses.length === 0) {
+    return {
+      answer:
+        'The AI advisor is busy right now, and I couldn\'t find courses matching those words. Try a topic (e.g. "negotiation" or "data") or a course number like API-209, or try again in a few minutes.',
+      courses: [],
+      fallback: true,
+    };
+  }
+  const lines = courses.map((g) => {
+    const first = g.sections[0]!;
+    const time = [...new Set(g.sections.map((s) => `${s.session}: ${meetingLabel(s)}`))][0];
+    return `• ${g.courseNumber}: ${g.title} (${first.credits} credits${time ? `; ${time}` : ""})`;
+  });
+  return {
+    answer: `The AI advisor is busy right now, so I can't give a tailored recommendation. These courses in the catalog best match your question:\n${lines.join("\n")}\n\nTry again in a few minutes for advice on how they fit your goals.`,
+    courses: courses.map((g) => g.courseNumber),
+    fallback: true,
+  };
+}

@@ -34,3 +34,4 @@ use the editor.
 - Student profile and plan persist in localStorage via `src/lib/planner-store.tsx` (no login); read storage only in effects to avoid hydration mismatches.
 - Planner rules (blocked slots, clashes, credit totals, core pinning, grouping) are pure functions in `src/lib/courses.ts` and `src/lib/matching.ts`, covered by `src/lib/planner.test.ts`.
 - AI match picks run in the `getAiMatches` server function; the browser only sends eligible course keys, and keyword ranking is the instant fallback while AI loads or if it fails.
+- AI calls go through `generateJson` in `src/lib/llm.ts` (server only): Google Gemini first when the `GEMINI_API_KEY` secret is set (optional `GEMINI_MODEL`), then Lovable's AI gateway. If both fail, the advisor answers from catalog search alone (`fallbackReply` in `src/lib/advisor.ts`).

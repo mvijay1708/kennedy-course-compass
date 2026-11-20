@@ -31,7 +31,12 @@ export const Route = createFileRoute("/advisor")({
   component: AdvisorPage,
 });
 
-type Message = { role: "user" | "assistant"; content: string; courses?: string[] };
+type Message = {
+  role: "user" | "assistant";
+  content: string;
+  courses?: string[];
+  fallback?: boolean;
+};
 
 const SUGGESTIONS = [
   "Which quantitative courses fit someone heading into consulting?",
@@ -65,7 +70,10 @@ function AdvisorPage() {
       setError("Please keep your question under 800 characters.");
       return;
     }
-    const history = messages.map((m) => ({ role: m.role, content: m.content }));
+    // Catalog-only fallback replies are not useful context for the AI, so leave them out.
+    const history = messages
+      .filter((m) => !m.fallback)
+      .map((m) => ({ role: m.role, content: m.content }));
     setMessages((m) => [...m, { role: "user", content: question }]);
     setDraft("");
     setError(null);
@@ -84,7 +92,12 @@ function AdvisorPage() {
       });
       setMessages((m) => [
         ...m,
-        { role: "assistant", content: reply.answer, courses: reply.courses },
+        {
+          role: "assistant",
+          content: reply.answer,
+          courses: reply.courses,
+          fallback: reply.fallback,
+        },
       ]);
     } catch {
       setMessages((m) => m.slice(0, -1));
@@ -144,6 +157,11 @@ function AdvisorPage() {
                       : "max-w-[85%] rounded-2xl rounded-bl-sm border border-border bg-background px-4 py-3"
                   }
                 >
+                  {m.fallback && (
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">
+                      Catalog search · AI unavailable
+                    </p>
+                  )}
                   <p className="whitespace-pre-line text-sm leading-relaxed">{m.content}</p>
                   {m.courses && m.courses.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">

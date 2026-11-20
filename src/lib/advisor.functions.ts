@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { courseLine, retrieveCourses } from "./advisor";
+import { courseLine, fallbackReply, retrieveCourses, type AdvisorReply } from "./advisor";
 import { SECTIONS } from "./courses";
 
 const MessageSchema = z.object({
@@ -19,7 +19,7 @@ const InputSchema = z.object({
   areas: z.array(z.string().max(100)).max(10),
 });
 
-export type AdvisorReply = { answer: string; courses: string[] };
+export type { AdvisorReply };
 
 const OutputSchema = z.object({
   answer: z.string(),
@@ -45,7 +45,7 @@ Style: plain text, friendly and concise, under 150 words. Use short lists when c
 export const askAdvisor = createServerFn({ method: "POST" })
   .validator((input: unknown) => InputSchema.parse(input))
   .handler(async ({ data }): Promise<AdvisorReply> => {
-    const { generateResponse } = await import("@lovable.dev/ai-gateway");
+    const { generateJson } = await import("./llm");
 
     const profileText = [data.goals, data.skills, ...data.chips, ...data.areas].join(" ");
     const recentUser = data.history
@@ -73,19 +73,16 @@ export const askAdvisor = createServerFn({ method: "POST" })
       ? courses.map(courseLine).join("\n")
       : "(no matching courses found)";
 
-    const res = await generateResponse({
-      model: "openai/gpt-6-astra",
-      reasoning: { effort: "low" },
-      instructions: `${INSTRUCTIONS}\n\nSTUDENT PROFILE\n${profile}\n\nCOURSES\n${catalog}`,
-      input: [
-        ...data.history.slice(-6).map((m) => ({ role: m.role, content: m.content })),
-        { role: "user" as const, content: data.question },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "advisor_reply",
-          strict: true,
+    let parsed: z.infer<typeof OutputSchema>;
+    try {
+      parsed = await generateJson(
+        {
+          instructions: `${INSTRUCTIONS}\n\nSTUDENT PROFILE\n${profile}\n\nCOURSES\n${catalog}`,
+          messages: [
+            ...data.history.slice(-6).map((m) => ({ role: m.role, content: m.content })),
+            { role: "user" as const, content: data.question },
+          ],
+          schemaName: "advisor_reply",
           schema: {
             type: "object",
             additionalProperties: false,
@@ -96,20 +93,15 @@ export const askAdvisor = createServerFn({ method: "POST" })
             },
           },
         },
-      },
-    });
-
-    let text = "";
-    for (const item of res.output ?? []) {
-      if (item.type !== "message") continue;
-      for (const c of item.content) {
-        if (c.type === "output_text") text += c.text;
-      }
+        (v) => OutputSchema.parse(v),
+      );
+    } catch {
+      // No AI available: answer from the catalog search alone, using only the question's words.
+      return fallbackReply(retrieveCourses(SECTIONS, data.question, "", data.term, 5));
     }
-    const parsed = OutputSchema.parse(JSON.parse(text));
     // Only keep course numbers that really exist in what the AI was shown.
     const cited = [...new Set(parsed.courses.map((c) => c.trim().toUpperCase()))].filter((c) =>
       valid.has(c),
     );
-    return { answer: parsed.answer.trim(), courses: cited };
+    return { answer: parsed.answer.trim(), courses: cited, fallback: false };
   });
