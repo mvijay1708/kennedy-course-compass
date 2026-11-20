@@ -116,7 +116,7 @@ export function stem(word: string): string {
   return w;
 }
 
-function tokenize(text: string): string[] {
+export function tokenize(text: string): string[] {
   return (text.toLowerCase().match(/[a-z][a-z'-]+/g) ?? []).filter(
     (w) => w.length >= 3 && !STOP.has(w),
   );

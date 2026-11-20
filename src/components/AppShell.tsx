@@ -8,6 +8,7 @@ const NAV = [
   { to: "/matches", label: "My matches", step: "2" },
   { to: "/schedule", label: "Schedule", step: "3" },
   { to: "/plan", label: "My plan", step: "4" },
+  { to: "/advisor", label: "Ask the advisor", step: "5" },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -19,7 +20,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <Link to="/" className="flex items-baseline gap-2">
-            <span className="font-display text-xl font-semibold text-primary">HKS Course Planner</span>
+            <span className="font-display text-xl font-semibold text-primary">
+              HKS Course Planner
+            </span>
             <span className="hidden text-xs text-muted-foreground sm:inline">for MPP students</span>
           </Link>
           <nav className="flex flex-wrap gap-1">
@@ -33,7 +36,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <span className="hidden text-xs opacity-60 sm:inline">{item.step}</span>
                 {item.label}
                 {item.to === "/plan" && ready && count > 0 && (
-                  <span className="rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">{count}</span>
+                  <span className="rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
+                    {count}
+                  </span>
                 )}
               </Link>
             ))}
@@ -42,13 +47,22 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">{children}</main>
       <footer className="mx-auto max-w-6xl px-4 pb-10 text-xs text-muted-foreground sm:px-6">
-        Your profile and plan are saved in this browser only. Always confirm details on my.harvard before enrolling.
+        Your profile and plan are saved in this browser only. Always confirm details on my.harvard
+        before enrolling.
       </footer>
     </div>
   );
 }
 
-export function PageHeader({ title, subtitle, children }: { title: string; subtitle?: string; children?: ReactNode }) {
+export function PageHeader({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children?: ReactNode;
+}) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>

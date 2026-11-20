@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdvisorRouteImport } from './routes/advisor'
 import { Route as MatchesRouteImport } from './routes/matches'
 import { Route as PlanRouteImport } from './routes/plan'
 import { Route as ScheduleRouteImport } from './routes/schedule'
@@ -17,6 +18,11 @@ import { Route as ScheduleRouteImport } from './routes/schedule'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdvisorRoute = AdvisorRouteImport.update({
+  id: '/advisor',
+  path: '/advisor',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MatchesRoute = MatchesRouteImport.update({
@@ -37,12 +43,14 @@ const ScheduleRoute = ScheduleRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/advisor': typeof AdvisorRoute
   '/matches': typeof MatchesRoute
   '/plan': typeof PlanRoute
   '/schedule': typeof ScheduleRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/advisor': typeof AdvisorRoute
   '/matches': typeof MatchesRoute
   '/plan': typeof PlanRoute
   '/schedule': typeof ScheduleRoute
@@ -50,20 +58,22 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/advisor': typeof AdvisorRoute
   '/matches': typeof MatchesRoute
   '/plan': typeof PlanRoute
   '/schedule': typeof ScheduleRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/matches' | '/plan' | '/schedule'
+  fullPaths: '/' | '/advisor' | '/matches' | '/plan' | '/schedule'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/matches' | '/plan' | '/schedule'
-  id: '__root__' | '/' | '/matches' | '/plan' | '/schedule'
+  to: '/' | '/advisor' | '/matches' | '/plan' | '/schedule'
+  id: '__root__' | '/' | '/advisor' | '/matches' | '/plan' | '/schedule'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdvisorRoute: typeof AdvisorRoute
   MatchesRoute: typeof MatchesRoute
   PlanRoute: typeof PlanRoute
   ScheduleRoute: typeof ScheduleRoute
@@ -76,6 +86,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/advisor': {
+      id: '/advisor'
+      path: '/advisor'
+      fullPath: '/advisor'
+      preLoaderRoute: typeof AdvisorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/matches': {
@@ -104,6 +121,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdvisorRoute: AdvisorRoute,
   MatchesRoute: MatchesRoute,
   PlanRoute: PlanRoute,
   ScheduleRoute: ScheduleRoute,
