@@ -19,9 +19,16 @@ export const Route = createFileRoute("/plan")({
   head: () => ({
     meta: [
       { title: "My plan · HKS Course Planner" },
-      { name: "description", content: "A summary of your chosen HKS courses with credits, sessions, prep warnings and my.harvard links." },
+      {
+        name: "description",
+        content:
+          "A summary of your chosen HKS courses with credits, sessions, prep warnings and my.harvard links.",
+      },
       { property: "og:title", content: "My plan · HKS Course Planner" },
-      { property: "og:description", content: "Your chosen Harvard Kennedy School courses at a glance." },
+      {
+        property: "og:description",
+        content: "Your chosen Harvard Kennedy School courses at a glance.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -49,10 +56,13 @@ function TermPlan({ term, list, target }: { term: string; list: Section[]; targe
   const credits = creditsBySession(list);
   const total = list.reduce((n, s) => n + s.credits, 0);
   const clashes = termClashes(list, term);
+  const overTarget = target > 0 && total > target;
   const prep = list.filter((s) => s.prep);
   const sessionOrder = sessionsForTerm(term);
   const sorted = [...list].sort(
-    (a, b) => sessionOrder.indexOf(a.session) - sessionOrder.indexOf(b.session) || a.courseNumber.localeCompare(b.courseNumber),
+    (a, b) =>
+      sessionOrder.indexOf(a.session) - sessionOrder.indexOf(b.session) ||
+      a.courseNumber.localeCompare(b.courseNumber),
   );
 
   return (
@@ -60,16 +70,40 @@ function TermPlan({ term, list, target }: { term: string; list: Section[]; targe
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-2xl font-semibold">{term}</h2>
         <div className="text-sm text-muted-foreground">
-          <span className={total < target ? "text-warning-foreground" : "text-success-foreground"}>
+          <span
+            className={
+              overTarget
+                ? "font-semibold text-destructive"
+                : total < target
+                  ? "text-warning-foreground"
+                  : "text-success-foreground"
+            }
+          >
             {total} of {target} target credits
           </span>
           {sessionOrder
             .filter((s) => credits[s])
             .map((s) => (
-              <span key={s}> · {s}: {credits[s]}</span>
+              <span key={s}>
+                {" "}
+                · {s}: {credits[s]}
+              </span>
             ))}
         </div>
       </div>
+
+      {overTarget && (
+        <div
+          role="alert"
+          className="mb-4 flex items-center gap-2 rounded-xl border border-destructive/40 bg-clash p-4 text-sm text-clash-foreground"
+        >
+          <AlertTriangle className="size-4 shrink-0" />
+          <span>
+            {total - target} credits over your target of {target} for {term}. Consider dropping a
+            course or raising your target.
+          </span>
+        </div>
+      )}
 
       {clashes.length > 0 && (
         <div className="mb-4 rounded-xl border border-destructive/40 bg-clash p-4 text-sm text-clash-foreground">
@@ -79,7 +113,8 @@ function TermPlan({ term, list, target }: { term: string; list: Section[]; targe
           <ul className="mt-1 list-disc pl-6">
             {clashes.map(([a, b]) => (
               <li key={a.id + b.id}>
-                {a.courseNumber} and {b.courseNumber} overlap ({meetingLabel(a)} / {meetingLabel(b)})
+                {a.courseNumber} and {b.courseNumber} overlap ({meetingLabel(a)} / {meetingLabel(b)}
+                )
               </li>
             ))}
           </ul>
@@ -107,7 +142,12 @@ function TermPlan({ term, list, target }: { term: string; list: Section[]; targe
                   </div>
                   <div className="text-xs text-muted-foreground">
                     Section {s.section} · {s.instructors || "Staff"}
-                    {needsConsent(s) && <span className="text-warning-foreground"> · {s.consent} consent required</span>}
+                    {needsConsent(s) && (
+                      <span className="text-warning-foreground">
+                        {" "}
+                        · {s.consent} consent required
+                      </span>
+                    )}
                   </div>
                   {s.prep && (
                     <div className="mt-2 flex gap-2 rounded-md bg-warning px-2.5 py-1.5 text-xs text-warning-foreground">
@@ -122,12 +162,22 @@ function TermPlan({ term, list, target }: { term: string; list: Section[]; targe
                 <td className="px-4 py-3 whitespace-nowrap">{meetingLabel(s)}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{s.credits}</td>
                 <td className="px-4 py-3">
-                  <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+                  <a
+                    href={s.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-primary hover:underline"
+                  >
                     my.harvard <ExternalLink className="size-3.5" />
                   </a>
                 </td>
                 <td className="px-2 py-2 print:hidden">
-                  <Button variant="ghost" size="icon" aria-label={`Remove ${s.courseNumber}`} onClick={() => removeSection(s.id)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Remove ${s.courseNumber}`}
+                    onClick={() => removeSection(s.id)}
+                  >
                     <X />
                   </Button>
                 </td>
@@ -147,7 +197,8 @@ function TermPlan({ term, list, target }: { term: string; list: Section[]; targe
       </div>
       {prep.length > 0 && (
         <p className="mt-2 text-xs text-muted-foreground">
-          {prep.length} {prep.length === 1 ? "course lists" : "courses list"} recommended preparation. Check you meet it before enrolling.
+          {prep.length} {prep.length === 1 ? "course lists" : "courses list"} recommended
+          preparation. Check you meet it before enrolling.
         </p>
       )}
     </section>
@@ -157,11 +208,16 @@ function TermPlan({ term, list, target }: { term: string; list: Section[]; targe
 function PlanPage() {
   const { plan, profile, ready } = usePlanner();
   const terms = [profile.term, ...TERMS.filter((t) => t !== profile.term)];
-  const byTerm = terms.map((t) => ({ term: t, list: plan.filter((s) => s.term === t) })).filter((x) => x.list.length > 0);
+  const byTerm = terms
+    .map((t) => ({ term: t, list: plan.filter((s) => s.term === t) }))
+    .filter((x) => x.list.length > 0);
 
   return (
     <div>
-      <PageHeader title="My plan" subtitle="Everything you've picked, with credits, sessions and anything to check before you enroll.">
+      <PageHeader
+        title="My plan"
+        subtitle="Everything you've picked, with credits, sessions and anything to check before you enroll."
+      >
         {byTerm.length > 0 && (
           <Button variant="outline" onClick={() => window.print()} className="print:hidden">
             <Printer /> Print
@@ -172,13 +228,17 @@ function PlanPage() {
         <div className="rounded-xl border border-dashed border-border p-10 text-center">
           <BookOpen className="mx-auto size-8 text-muted-foreground" />
           <p className="mt-2 text-lg font-medium">No courses yet</p>
-          <p className="mt-1 text-muted-foreground">Add courses from your matches or the schedule builder.</p>
+          <p className="mt-1 text-muted-foreground">
+            Add courses from your matches or the schedule builder.
+          </p>
           <Button asChild className="mt-4">
             <Link to="/matches">See my matches</Link>
           </Button>
         </div>
       ) : (
-        byTerm.map((x) => <TermPlan key={x.term} term={x.term} list={x.list} target={profile.targetCredits} />)
+        byTerm.map((x) => (
+          <TermPlan key={x.term} term={x.term} list={x.list} target={profile.targetCredits} />
+        ))
       )}
     </div>
   );

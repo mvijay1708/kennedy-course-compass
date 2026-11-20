@@ -6,11 +6,19 @@ import {
   findClashes,
   groupSections,
   hitsBlockedSlot,
+  isNonDegree,
   isTBA,
   showsOnTab,
   type Section,
 } from "./courses";
-import { DEFAULT_FILTERS, coreMatches, rankCourses, type Profile } from "./matching";
+import {
+  DEFAULT_FILTERS,
+  coreMatches,
+  eligibleSections,
+  hiddenCoreCourses,
+  rankCourses,
+  type Profile,
+} from "./matching";
 import { DEFAULT_PROFILE } from "./planner-store";
 
 function section(over: Partial<Section>): Section {
@@ -58,37 +66,50 @@ describe("unavailable times", () => {
     expect(hitsBlockedSlot(section({ start: "16:30", end: "17:45" }), ["Wed:evening"])).toBe(true);
   });
   it("never hides Time TBA courses", () => {
-    expect(hitsBlockedSlot(section({ days: [], start: null, end: null }), ["Mon:morning"])).toBe(false);
+    expect(hitsBlockedSlot(section({ days: [], start: null, end: null }), ["Mon:morning"])).toBe(
+      false,
+    );
   });
   it("no ranked or core match meets during a blocked slot", () => {
     const blocked = ["Mon:morning", "Mon:afternoon", "Mon:evening"];
     const p = profile({ chips: ["Economics", "Leadership"], unavailable: blocked });
-    const all = [...rankCourses(SECTIONS, p, DEFAULT_FILTERS), ...coreMatches(SECTIONS, p, DEFAULT_FILTERS)];
+    const all = [
+      ...rankCourses(SECTIONS, p, DEFAULT_FILTERS),
+      ...coreMatches(SECTIONS, p, DEFAULT_FILTERS),
+    ];
     for (const m of all) for (const s of m.group.sections) expect(s.days).not.toContain("Mon");
   });
 });
 
 describe("matches", () => {
   it("returns at most 15 ranked courses", () => {
-    const p = profile({ chips: ["Economics", "Leadership", "Data analysis"], goals: "policy analysis" });
+    const p = profile({
+      chips: ["Economics", "Leadership", "Data analysis"],
+      goals: "policy analysis",
+    });
     expect(rankCourses(SECTIONS, p, DEFAULT_FILTERS).length).toBeLessThanOrEqual(15);
   });
   it("shows a multi-section course once", () => {
-    const groups = groupSections(SECTIONS.filter((s) => s.courseNumber === "API-101" && s.term === "2026 Fall"));
+    const groups = groupSections(
+      SECTIONS.filter((s) => s.courseNumber === "API-101" && s.term === "2026 Fall"),
+    );
     expect(groups).toHaveLength(1);
     expect(groups[0]!.sections.length).toBe(4);
   });
   it("pins the required core and keeps it out of the ranked 15", () => {
     const p = profile({ chips: ["Economics"] });
     const core = coreMatches(SECTIONS, p, DEFAULT_FILTERS).map((m) => m.group.courseNumber);
-    expect(core).toEqual(expect.arrayContaining(["API-101", "API-201", "API-501", "DPI-386M", "MLD-220M"]));
+    expect(core).toEqual(
+      expect.arrayContaining(["API-101", "API-201", "API-501", "DPI-386M", "MLD-220M"]),
+    );
     const ranked = rankCourses(SECTIONS, p, DEFAULT_FILTERS).map((m) => m.group.courseNumber);
     expect(ranked).not.toContain("API-101");
   });
   it("'no consent required' filter excludes consent courses", () => {
     const p = profile({ chips: ["Negotiation", "Leadership", "Economics"] });
     const res = rankCourses(SECTIONS, p, { ...DEFAULT_FILTERS, noConsent: true });
-    for (const m of res) for (const s of m.group.sections) expect(s.consent ?? "No Consent").toBe("No Consent");
+    for (const m of res)
+      for (const s of m.group.sections) expect(s.consent ?? "No Consent").toBe("No Consent");
   });
 });
 
@@ -121,5 +142,64 @@ describe("schedule", () => {
       section({ session: "Fall 1", credits: 2 }),
     ]);
     expect(totals).toEqual({ "Full Term": 4, "Fall 1": 4 });
+  });
+});
+
+describe("non-degree courses", () => {
+  it("flags 0-credit workshops and summer reading & research", () => {
+    expect(isNonDegree(section({ credits: 0 }))).toBe(true);
+    expect(isNonDegree(section({ courseNumber: "SMR-3", credits: 1 }))).toBe(true);
+    expect(
+      isNonDegree(section({ title: "Summer Work Experience Reading and Research", credits: 1 })),
+    ).toBe(true);
+  });
+  it("never flags core courses, even 0-credit ones", () => {
+    expect(isNonDegree(section({ courseNumber: "API-500M", credits: 0 }))).toBe(false);
+  });
+  it("keeps normal electives", () => {
+    expect(isNonDegree(section({}))).toBe(false);
+  });
+  it("hides non-degree courses from matches unless the toggle is on", () => {
+    const list = [section({ id: "a" }), section({ id: "b", courseNumber: "SMR-3", credits: 1 })];
+    const p = profile({ term: "2026 Fall" });
+    expect(eligibleSections(list, p, DEFAULT_FILTERS).map((s) => s.id)).toEqual(["a"]);
+    expect(
+      eligibleSections(list, p, { ...DEFAULT_FILTERS, showNonDegree: true }).map((s) => s.id),
+    ).toEqual(["a", "b"]);
+  });
+  it("real catalog: SMR-3 is excluded from default Fall matches", () => {
+    const ids = eligibleSections(SECTIONS, profile({ term: "2026 Fall" }), DEFAULT_FILTERS).map(
+      (s) => s.courseNumber,
+    );
+    expect(ids).not.toContain("SMR-3");
+  });
+});
+
+describe("hidden core courses", () => {
+  const list = [
+    section({
+      id: "c1",
+      courseNumber: "API-101",
+      section: "A",
+      days: ["Mon", "Wed"],
+      start: "10:30",
+      end: "11:45",
+    }),
+    section({
+      id: "c2",
+      courseNumber: "API-101",
+      section: "B",
+      days: ["Tue", "Thu"],
+      start: "13:30",
+      end: "14:45",
+    }),
+  ];
+  it("reports a core course when every section is blocked", () => {
+    const p = profile({ unavailable: ["Mon:morning", "Tue:afternoon"] });
+    expect(hiddenCoreCourses(list, p)).toEqual(["API-101"]);
+  });
+  it("doesn't report it when one section still fits", () => {
+    const p = profile({ unavailable: ["Mon:morning"] });
+    expect(hiddenCoreCourses(list, p)).toEqual([]);
   });
 });

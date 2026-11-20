@@ -1,14 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Sparkles } from "lucide-react";
+import { Info, Loader2, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { PageHeader } from "@/components/AppShell";
 import { CourseCard } from "@/components/CourseCard";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { readAiCache, writeAiCache } from "@/lib/ai-cache";
 import { getAiMatches } from "@/lib/ai-match.functions";
@@ -17,6 +24,7 @@ import {
   DEFAULT_FILTERS,
   coreMatches,
   eligibleSections,
+  hiddenCoreCourses,
   profileTerms,
   rankCourses,
   type Match,
@@ -28,9 +36,16 @@ export const Route = createFileRoute("/matches")({
   head: () => ({
     meta: [
       { title: "My matches · HKS Course Planner" },
-      { name: "description", content: "Your top 15 Harvard Kennedy School courses ranked by fit with your goals and skills." },
+      {
+        name: "description",
+        content:
+          "Your top 15 Harvard Kennedy School courses ranked by fit with your goals and skills.",
+      },
       { property: "og:title", content: "My matches · HKS Course Planner" },
-      { property: "og:description", content: "The 15 HKS courses that best match your goals, with a reason for each." },
+      {
+        property: "og:description",
+        content: "The 15 HKS courses that best match your goals, with a reason for each.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -74,8 +89,12 @@ function MatchesPage() {
   const set = (patch: Partial<MatchFilters>) => setFilters((f) => ({ ...f, ...patch }));
 
   const hasProfile = profileTerms(profile).length > 0 || profile.areas.length > 0;
-  const keywordMatches = useMemo(() => rankCourses(SECTIONS, profile, filters, 15), [profile, filters]);
+  const keywordMatches = useMemo(
+    () => rankCourses(SECTIONS, profile, filters, 15),
+    [profile, filters],
+  );
   const core = useMemo(() => coreMatches(SECTIONS, profile, filters), [profile, filters]);
+  const hiddenCore = useMemo(() => hiddenCoreCourses(SECTIONS, profile), [profile]);
   const candidates = useMemo(
     () => groupSections(eligibleSections(SECTIONS, profile, filters).filter((s) => !isCore(s))),
     [profile, filters],
@@ -114,6 +133,8 @@ function MatchesPage() {
       })
     : null;
   const usingAi = !!aiMatches && aiMatches.length > 0;
+  // While AI picks load, show placeholders; keyword matches are only the fallback when AI fails or returns nothing.
+  const aiLoading = ai.isFetching && !ai.data;
   const matches = usingAi ? aiMatches : keywordMatches;
   const filtersOn = JSON.stringify(filters) !== JSON.stringify(DEFAULT_FILTERS);
 
@@ -122,7 +143,9 @@ function MatchesPage() {
       <PageHeader
         title="My matches"
         subtitle={`Top courses for ${profile.term}, ranked by how well they fit your goals, skills and areas.${
-          profile.unavailable.length ? " Courses that meet during your unavailable times are hidden." : ""
+          profile.unavailable.length
+            ? " Courses that meet during your unavailable times are hidden."
+            : ""
         }`}
       />
 
@@ -131,7 +154,10 @@ function MatchesPage() {
           label="Session"
           value={filters.session}
           onChange={(v) => set({ session: v })}
-          options={[{ value: "all", label: "All sessions" }, ...sessionsForTerm(profile.term).map((s) => ({ value: s, label: s }))]}
+          options={[
+            { value: "all", label: "All sessions" },
+            ...sessionsForTerm(profile.term).map((s) => ({ value: s, label: s })),
+          ]}
         />
         <FilterSelect
           label="Credits"
@@ -149,12 +175,29 @@ function MatchesPage() {
           label="Academic area"
           value={filters.area}
           onChange={(v) => set({ area: v })}
-          options={[{ value: "all", label: "All areas" }, ...ACADEMIC_AREAS.map((a) => ({ value: a, label: a }))]}
+          options={[
+            { value: "all", label: "All areas" },
+            ...ACADEMIC_AREAS.map((a) => ({ value: a, label: a })),
+          ]}
         />
         <div className="flex h-9 items-center gap-2 px-1">
-          <Switch id="noconsent" checked={filters.noConsent} onCheckedChange={(v) => set({ noConsent: v })} />
+          <Switch
+            id="noconsent"
+            checked={filters.noConsent}
+            onCheckedChange={(v) => set({ noConsent: v })}
+          />
           <Label htmlFor="noconsent" className="text-sm">
             No consent required
+          </Label>
+        </div>
+        <div className="flex h-9 items-center gap-2 px-1">
+          <Switch
+            id="nondegree"
+            checked={filters.showNonDegree}
+            onCheckedChange={(v) => set({ showNonDegree: v })}
+          />
+          <Label htmlFor="nondegree" className="text-sm">
+            Include non-degree courses
           </Label>
         </div>
         {filtersOn && (
@@ -164,10 +207,35 @@ function MatchesPage() {
         )}
       </div>
 
+      {ready && hiddenCore.length > 0 && (
+        <div className="mb-6 flex gap-2 rounded-xl border border-warning-foreground/30 bg-warning p-4 text-sm text-warning-foreground">
+          <Info className="mt-0.5 size-4 shrink-0" />
+          <p>
+            {hiddenCore.length === 1 ? (
+              <>
+                <strong>{hiddenCore[0]}</strong> is a required core course but is hidden because
+                every section meets during your unavailable times.
+              </>
+            ) : (
+              <>
+                <strong>{hiddenCore.join(", ")}</strong> are required core courses but are hidden
+                because every section meets during your unavailable times.
+              </>
+            )}{" "}
+            <Link to="/" className="underline">
+              Adjust your availability
+            </Link>
+            .
+          </p>
+        </div>
+      )}
+
       {ready && core.length > 0 && (
         <section className="mb-8">
           <h2 className="mb-1 text-2xl font-semibold">Required MPP core</h2>
-          <p className="mb-3 text-sm text-muted-foreground">Pinned for every MPP student, whatever your profile says.</p>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Pinned for every MPP student, whatever your profile says.
+          </p>
           <div className="flex flex-col gap-4">
             {core.map((m) => (
               <CourseCard key={m.group.key} group={m.group} reason={m.reason} pinned />
@@ -182,7 +250,7 @@ function MatchesPage() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
             {ai.isFetching ? (
               <>
-                <Loader2 className="size-4 animate-spin" /> Picking your best fits with AI… showing quick matches meanwhile
+                <Loader2 className="size-4 animate-spin" /> Picking your best fits with AI…
               </>
             ) : usingAi ? (
               <>
@@ -191,7 +259,12 @@ function MatchesPage() {
             ) : ai.isError ? (
               <>
                 AI picks aren't available right now, so these are quick keyword matches.
-                <Button variant="link" size="sm" className="h-auto p-0" onClick={() => ai.refetch()}>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0"
+                  onClick={() => ai.refetch()}
+                >
                   Try again
                 </Button>
               </>
@@ -203,15 +276,30 @@ function MatchesPage() {
       {!ready ? null : !hasProfile ? (
         <div className="rounded-xl border border-dashed border-border p-10 text-center">
           <p className="text-lg font-medium">Tell us a bit about yourself first</p>
-          <p className="mt-1 text-muted-foreground">Add career goals, skills or areas so we can rank courses for you.</p>
+          <p className="mt-1 text-muted-foreground">
+            Add career goals, skills or areas so we can rank courses for you.
+          </p>
           <Button asChild className="mt-4">
             <Link to="/">Go to profile</Link>
           </Button>
         </div>
+      ) : aiLoading ? (
+        <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading your matches">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="rounded-xl border border-border bg-card p-5 shadow-card">
+              <Skeleton className="mb-3 h-4 w-24" />
+              <Skeleton className="mb-2 h-6 w-2/3" />
+              <Skeleton className="mb-4 h-4 w-full" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          ))}
+        </div>
       ) : matches.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-10 text-center">
           <p className="text-lg font-medium">No matching courses</p>
-          <p className="mt-1 text-muted-foreground">Try loosening the filters, adding more skills, or freeing up some times.</p>
+          <p className="mt-1 text-muted-foreground">
+            Try loosening the filters, adding more skills, or freeing up some times.
+          </p>
         </div>
       ) : (
         <div className="flex flex-col gap-4">

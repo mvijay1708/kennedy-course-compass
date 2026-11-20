@@ -74,7 +74,9 @@ export function formatTime(t: string | null): string {
 
 export function meetingLabel(s: Section): string {
   if (isTBA(s)) return "Time TBA";
-  const days = [...s.days].sort((a, b) => ALL_DAYS.indexOf(a as never) - ALL_DAYS.indexOf(b as never));
+  const days = [...s.days].sort(
+    (a, b) => ALL_DAYS.indexOf(a as never) - ALL_DAYS.indexOf(b as never),
+  );
   return `${days.join("/")} ${formatTime(s.start)}–${formatTime(s.end)}`;
 }
 
@@ -155,7 +157,16 @@ export function creditsBySession(list: Section[]): Record<string, number> {
 }
 
 /** Required MPP core courses, pinned at the top of matches. */
-export const CORE_COURSES = ["API-101", "API-102", "API-201", "API-202M", "API-500M", "API-501", "DPI-386M", "MLD-220M"];
+export const CORE_COURSES = [
+  "API-101",
+  "API-102",
+  "API-201",
+  "API-202M",
+  "API-500M",
+  "API-501",
+  "DPI-386M",
+  "MLD-220M",
+];
 
 /** Some courses list each section as its own number (DPI-386MA, DPI-386MB...). Treat them as one course. */
 export function canonicalNumber(courseNumber: string): string {
@@ -164,6 +175,18 @@ export function canonicalNumber(courseNumber: string): string {
 
 export function isCore(s: Pick<Section, "courseNumber">): boolean {
   return CORE_COURSES.includes(canonicalNumber(s.courseNumber));
+}
+
+/**
+ * Courses that don't count toward the degree's credit requirements: 0-credit
+ * workshops and summer work-experience reading & research (SMR).
+ * Core courses are never treated as non-degree (e.g. the 0-credit Spring Exercise).
+ */
+export function isNonDegree(s: Pick<Section, "courseNumber" | "title" | "credits">): boolean {
+  if (isCore(s)) return false;
+  return (
+    s.credits === 0 || /^SMR-/.test(s.courseNumber) || /reading\s*(and|&)\s*research/i.test(s.title)
+  );
 }
 
 export function groupKey(s: Pick<Section, "courseNumber" | "term">): string {
@@ -191,7 +214,9 @@ export function groupSections(list: Section[]): CourseGroup[] {
     g.sections.push(s);
   }
   for (const g of map.values()) {
-    g.sections.sort((a, b) => a.section.localeCompare(b.section) || a.session.localeCompare(b.session));
+    g.sections.sort(
+      (a, b) => a.section.localeCompare(b.section) || a.session.localeCompare(b.session),
+    );
   }
   return [...map.values()];
 }

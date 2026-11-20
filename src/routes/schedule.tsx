@@ -22,9 +22,15 @@ export const Route = createFileRoute("/schedule")({
   head: () => ({
     meta: [
       { title: "Schedule builder · HKS Course Planner" },
-      { name: "description", content: "See your HKS courses on a weekly calendar by session, with time clashes flagged." },
+      {
+        name: "description",
+        content: "See your HKS courses on a weekly calendar by session, with time clashes flagged.",
+      },
       { property: "og:title", content: "Schedule builder · HKS Course Planner" },
-      { property: "og:description", content: "Build your weekly HKS schedule for each session and spot clashes instantly." },
+      {
+        property: "og:description",
+        content: "Build your weekly HKS schedule for each session and spot clashes instantly.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -42,10 +48,14 @@ function SchedulePage() {
   const credits = creditsBySession(termPlan);
   const total = termPlan.reduce((n, s) => n + s.credits, 0);
   const tba = termPlan.filter(isTBA);
+  const overTarget = profile.targetCredits > 0 && total > profile.targetCredits;
 
   return (
     <div>
-      <PageHeader title="Schedule builder" subtitle={`Your week in ${profile.term}. Hover a course on the calendar to remove it.`}>
+      <PageHeader
+        title="Schedule builder"
+        subtitle={`Your week in ${profile.term}. Hover a course on the calendar to remove it.`}
+      >
         <Button variant="outline" asChild>
           <Link to="/matches">Browse matches</Link>
         </Button>
@@ -56,17 +66,46 @@ function SchedulePage() {
           <div key={s} className="rounded-xl border border-border bg-card p-3 shadow-card">
             <div className="text-xs text-muted-foreground">{s}</div>
             <div className="font-display text-2xl font-semibold">
-              {credits[s] ?? 0} <span className="text-sm font-normal text-muted-foreground">credits</span>
+              {credits[s] ?? 0}{" "}
+              <span className="text-sm font-normal text-muted-foreground">credits</span>
             </div>
           </div>
         ))}
-        <div className="rounded-xl border border-primary/30 bg-primary-soft p-3">
-          <div className="text-xs text-primary">Term total</div>
-          <div className="font-display text-2xl font-semibold text-primary">
+        <div
+          className={
+            overTarget
+              ? "rounded-xl border border-destructive/40 bg-clash p-3"
+              : "rounded-xl border border-primary/30 bg-primary-soft p-3"
+          }
+        >
+          <div className={overTarget ? "text-xs text-clash-foreground" : "text-xs text-primary"}>
+            Term total
+          </div>
+          <div
+            className={
+              overTarget
+                ? "font-display text-2xl font-semibold text-clash-foreground"
+                : "font-display text-2xl font-semibold text-primary"
+            }
+          >
             {total} <span className="text-sm font-normal">/ {profile.targetCredits}</span>
           </div>
         </div>
       </div>
+
+      {overTarget && (
+        <div
+          role="alert"
+          className="mb-5 flex items-center gap-2 rounded-xl border border-destructive/40 bg-clash p-4 text-sm text-clash-foreground"
+        >
+          <AlertTriangle className="size-4 shrink-0" />
+          <span>
+            You're {total - profile.targetCredits} credits over your target of{" "}
+            {profile.targetCredits}. Consider dropping a course or raising your target on your
+            profile.
+          </span>
+        </div>
+      )}
 
       <div className="mb-5">
         <CourseSearch term={profile.term} />
@@ -95,12 +134,14 @@ function SchedulePage() {
               {pairs.length > 0 && (
                 <div className="mb-4 rounded-xl border border-destructive/40 bg-clash p-4 text-sm text-clash-foreground">
                   <div className="flex items-center gap-2 font-semibold">
-                    <AlertTriangle className="size-4" /> {pairs.length === 1 ? "1 time clash" : `${pairs.length} time clashes`}
+                    <AlertTriangle className="size-4" />{" "}
+                    {pairs.length === 1 ? "1 time clash" : `${pairs.length} time clashes`}
                   </div>
                   <ul className="mt-1 list-disc pl-6">
                     {pairs.map(([a, b]) => (
                       <li key={a.id + b.id}>
-                        {a.courseNumber} ({meetingLabel(a)}) overlaps {b.courseNumber} ({meetingLabel(b)})
+                        {a.courseNumber} ({meetingLabel(a)}) overlaps {b.courseNumber} (
+                        {meetingLabel(b)})
                       </li>
                     ))}
                   </ul>
@@ -127,7 +168,9 @@ function SchedulePage() {
         <h2 className="flex items-center gap-2 text-xl font-semibold">
           <Clock className="size-5 text-muted-foreground" /> Time TBA
         </h2>
-        <p className="text-sm text-muted-foreground">Courses without a set meeting time. They don't appear on the calendar.</p>
+        <p className="text-sm text-muted-foreground">
+          Courses without a set meeting time. They don't appear on the calendar.
+        </p>
         {tba.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">None in your plan.</p>
         ) : (
@@ -136,9 +179,17 @@ function SchedulePage() {
               <li key={x.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                 <span>
                   <span className="font-semibold text-primary">{x.courseNumber}</span> {x.title}
-                  <span className="text-muted-foreground"> · {x.session} · {x.credits} cr</span>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {x.session} · {x.credits} cr
+                  </span>
                 </span>
-                <Button variant="ghost" size="icon" aria-label={`Remove ${x.courseNumber}`} onClick={() => removeSection(x.id)}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Remove ${x.courseNumber}`}
+                  onClick={() => removeSection(x.id)}
+                >
                   <X />
                 </Button>
               </li>

@@ -1,6 +1,6 @@
 import type { AiPick } from "./ai-match.functions";
 
-const KEY = "hks-course-planner:ai-cache:v1";
+const KEY = "hks-course-planner:ai-cache:v2";
 const MAX = 12;
 
 type Entry = { k: string; picks: AiPick[] };
@@ -17,7 +17,9 @@ export function readAiCache(k: string): AiPick[] | null {
 
 export function writeAiCache(k: string, picks: AiPick[]): void {
   try {
-    const list = (JSON.parse(window.localStorage.getItem(KEY) ?? "[]") as Entry[]).filter((e) => e.k !== k);
+    const list = (JSON.parse(window.localStorage.getItem(KEY) ?? "[]") as Entry[]).filter(
+      (e) => e.k !== k,
+    );
     list.unshift({ k, picks });
     window.localStorage.setItem(KEY, JSON.stringify(list.slice(0, MAX)));
   } catch {

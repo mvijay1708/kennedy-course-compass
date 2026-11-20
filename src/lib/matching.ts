@@ -1,5 +1,5 @@
 import type { CourseGroup, Section } from "./courses";
-import { groupSections, hitsBlockedSlot, isCore, needsConsent } from "./courses";
+import { groupSections, hitsBlockedSlot, isCore, isNonDegree, needsConsent } from "./courses";
 
 export type Profile = {
   term: string;
@@ -13,18 +13,80 @@ export type Profile = {
 };
 
 export const SKILL_CHIPS: Record<string, string[]> = {
-  "Data analysis": ["data", "statistics", "statistical", "quantitative", "empirical", "regression", "econometrics", "analytics", "evidence", "causal", "evaluation", "programming", "machine learning"],
-  Economics: ["economics", "economic", "markets", "microeconomic", "macroeconomic", "fiscal", "monetary", "trade", "finance", "incentives"],
+  "Data analysis": [
+    "data",
+    "statistics",
+    "statistical",
+    "quantitative",
+    "empirical",
+    "regression",
+    "econometrics",
+    "analytics",
+    "evidence",
+    "causal",
+    "evaluation",
+    "programming",
+    "machine learning",
+  ],
+  Economics: [
+    "economics",
+    "economic",
+    "markets",
+    "microeconomic",
+    "macroeconomic",
+    "fiscal",
+    "monetary",
+    "trade",
+    "finance",
+    "incentives",
+  ],
   Development: ["development", "developing", "poverty", "inequality", "growth", "aid", "emerging"],
   Negotiation: ["negotiation", "negotiating", "bargaining", "conflict", "mediation", "dispute"],
   Leadership: ["leadership", "leading", "leader", "adaptive", "authority", "organizing", "change"],
   Writing: ["writing", "communication", "memo", "persuasion", "storytelling", "rhetoric", "op-ed"],
-  Consulting: ["consulting", "client", "strategy", "strategic", "advisory", "management", "implementation"],
+  Consulting: [
+    "consulting",
+    "client",
+    "strategy",
+    "strategic",
+    "advisory",
+    "management",
+    "implementation",
+  ],
   "Public finance": ["budget", "budgeting", "tax", "taxation", "fiscal", "public finance", "debt"],
-  "Tech policy": ["technology", "digital", "artificial intelligence", "cyber", "innovation", "data privacy"],
-  "Climate & energy": ["climate", "energy", "environmental", "environment", "sustainability", "carbon"],
-  "Security & foreign policy": ["security", "foreign policy", "diplomacy", "military", "defense", "war", "nuclear"],
-  "Public speaking": ["speaking", "speech", "public narrative", "persuasion", "presentation", "communication"],
+  "Tech policy": [
+    "technology",
+    "digital",
+    "artificial intelligence",
+    "cyber",
+    "innovation",
+    "data privacy",
+  ],
+  "Climate & energy": [
+    "climate",
+    "energy",
+    "environmental",
+    "environment",
+    "sustainability",
+    "carbon",
+  ],
+  "Security & foreign policy": [
+    "security",
+    "foreign policy",
+    "diplomacy",
+    "military",
+    "defense",
+    "war",
+    "nuclear",
+  ],
+  "Public speaking": [
+    "speaking",
+    "speech",
+    "public narrative",
+    "persuasion",
+    "presentation",
+    "communication",
+  ],
 };
 
 const STOP = new Set(
@@ -35,14 +97,29 @@ const STOP = new Set(
 
 export function stem(word: string): string {
   const w = word.toLowerCase();
-  for (const suf of ["ations", "ation", "ings", "ing", "ies", "ers", "es", "ed", "er", "al", "ly", "s"]) {
+  for (const suf of [
+    "ations",
+    "ation",
+    "ings",
+    "ing",
+    "ies",
+    "ers",
+    "es",
+    "ed",
+    "er",
+    "al",
+    "ly",
+    "s",
+  ]) {
     if (w.endsWith(suf) && w.length - suf.length >= 4) return w.slice(0, -suf.length);
   }
   return w;
 }
 
 function tokenize(text: string): string[] {
-  return (text.toLowerCase().match(/[a-z][a-z'-]+/g) ?? []).filter((w) => w.length >= 3 && !STOP.has(w));
+  return (text.toLowerCase().match(/[a-z][a-z'-]+/g) ?? []).filter(
+    (w) => w.length >= 3 && !STOP.has(w),
+  );
 }
 
 type Term = { label: string; source: string; stems: string[]; phrase: string | null };
@@ -68,7 +145,13 @@ export function profileTerms(p: Profile): Term[] {
   return [...terms.values()];
 }
 
-type Indexed = { group: CourseGroup; titleStems: Set<string>; descStems: Set<string>; text: string; titleText: string };
+type Indexed = {
+  group: CourseGroup;
+  titleStems: Set<string>;
+  descStems: Set<string>;
+  text: string;
+  titleText: string;
+};
 
 function indexGroup(g: CourseGroup): Indexed {
   return {
@@ -91,9 +174,17 @@ export type MatchFilters = {
   credits: string; // "all" or number as string
   area: string; // "all" or area
   noConsent: boolean;
+  /** Include courses that don't count toward the degree (0-credit workshops, summer reading & research). */
+  showNonDegree: boolean;
 };
 
-export const DEFAULT_FILTERS: MatchFilters = { session: "all", credits: "all", area: "all", noConsent: false };
+export const DEFAULT_FILTERS: MatchFilters = {
+  session: "all",
+  credits: "all",
+  area: "all",
+  noConsent: false,
+  showNonDegree: false,
+};
 
 /** Sections the student could take given term, unavailable days and filters. */
 export function eligibleSections(all: Section[], p: Profile, f: MatchFilters): Section[] {
@@ -104,8 +195,21 @@ export function eligibleSections(all: Section[], p: Profile, f: MatchFilters): S
       (f.session === "all" || s.session === f.session) &&
       (f.credits === "all" || String(s.credits) === f.credits) &&
       (f.area === "all" || s.area === f.area) &&
-      (!f.noConsent || !needsConsent(s)),
+      (!f.noConsent || !needsConsent(s)) &&
+      (f.showNonDegree || !isNonDegree(s)),
   );
+}
+
+/**
+ * Core courses offered this term that are hidden only because every section
+ * meets during the student's unavailable times. Returned as course numbers.
+ */
+export function hiddenCoreCourses(all: Section[], p: Profile): string[] {
+  const coreThisTerm = groupSections(all.filter((s) => s.term === p.term && isCore(s)));
+  return coreThisTerm
+    .filter((g) => g.sections.every((s) => hitsBlockedSlot(s, p.unavailable)))
+    .map((g) => g.courseNumber)
+    .sort();
 }
 
 function listJoin(items: string[]): string {
@@ -162,16 +266,19 @@ export function rankCourses(all: Section[], p: Profile, f: MatchFilters, limit =
     const parts: string[] = [];
     const top = [...titleLabels, ...descLabels].slice(0, 3);
     if (top.length) {
-      parts.push(
-        titleLabels.size
-          ? `Centered on ${listJoin(top)}`
-          : `Covers ${listJoin(top)}`,
-      );
+      parts.push(titleLabels.size ? `Centered on ${listJoin(top)}` : `Covers ${listJoin(top)}`);
     }
-    if (inArea) parts.push(parts.length ? `in ${ix.group.area}, one of your areas` : `In ${ix.group.area}, one of your areas`);
+    if (inArea)
+      parts.push(
+        parts.length
+          ? `in ${ix.group.area}, one of your areas`
+          : `In ${ix.group.area}, one of your areas`,
+      );
     results.push({ group: ix.group, score, reason: `${parts.join(", ")}.` });
   }
 
-  results.sort((a, b) => b.score - a.score || a.group.courseNumber.localeCompare(b.group.courseNumber));
+  results.sort(
+    (a, b) => b.score - a.score || a.group.courseNumber.localeCompare(b.group.courseNumber),
+  );
   return results.slice(0, limit);
 }
