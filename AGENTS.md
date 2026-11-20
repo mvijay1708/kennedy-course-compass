@@ -28,3 +28,9 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Project rules
+- Course data lives in `src/data/courses.json`, generated once from the uploaded CSV; the app has no backend database, so the catalog ships with the bundle.
+- Student profile and plan persist in localStorage via `src/lib/planner-store.tsx` (no login); read storage only in effects to avoid hydration mismatches.
+- Planner rules (blocked slots, clashes, credit totals, core pinning, grouping) are pure functions in `src/lib/courses.ts` and `src/lib/matching.ts`, covered by `src/lib/planner.test.ts`.
+- AI match picks run in the `getAiMatches` server function; the browser only sends eligible course keys, and keyword ranking is the instant fallback while AI loads or if it fails.
